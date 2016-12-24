@@ -19,6 +19,8 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
@@ -35,10 +37,28 @@ import android.widget.ProgressBar;
 import com.example.android.sunshine.data.SunshinePreferences;
 import com.example.android.sunshine.data.WeatherContract;
 import com.example.android.sunshine.sync.SunshineSyncUtils;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.Node;
+import com.google.android.gms.wearable.NodeApi;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
 
 public class MainActivity extends AppCompatActivity implements
         LoaderManager.LoaderCallbacks<Cursor>,
-        ForecastAdapter.ForecastAdapterOnClickHandler {
+        ForecastAdapter.ForecastAdapterOnClickHandler, GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener, ResultCallback<DataApi.DataItemResult>
+        ,DataApi.DataListener {
+
+    public static String HIGH_TEMP_DATA= "-1°";
+    public static String LOW_TEMP_DATA = "-1°";
+    public static int WEATHER_ID_DATA = 500;
+    private GoogleApiClient mGoogleApiClient;
+    private static final String DATA_PATH = "/sunshine-watchface/data";
 
     private final String TAG = MainActivity.class.getSimpleName();
 
@@ -85,6 +105,12 @@ public class MainActivity extends AppCompatActivity implements
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_forecast);
         getSupportActionBar().setElevation(0f);
+
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(Wearable.API)
+                .build();
 
         /*
          * Using findViewById, we get a reference to our RecyclerView from xml. This allows us to
@@ -154,6 +180,21 @@ public class MainActivity extends AppCompatActivity implements
 
         SunshineSyncUtils.initialize(this);
 
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mGoogleApiClient.connect();
+
+    }
+
+    @Override
+    protected void onStop() {
+        if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+            mGoogleApiClient.disconnect();
+        }
+        super.onStop();
     }
 
     /**
@@ -342,5 +383,79 @@ public class MainActivity extends AppCompatActivity implements
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    public void sendWeatherData() {
+
+        Wearable.NodeApi.getConnectedNodes(mGoogleApiClient)
+                .setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
+                    @Override
+                    public void onResult(@NonNull NodeApi.GetConnectedNodesResult getConnectedNodesResult) {
+                        PutDataMapRequest putDataMapReq = PutDataMapRequest.create(DATA_PATH);
+                        putDataMapReq.getDataMap().putString("LOW", LOW_TEMP_DATA);
+                        putDataMapReq.getDataMap().putString("HIGH", HIGH_TEMP_DATA);
+                        putDataMapReq.getDataMap().putInt("WEATHER_ID_DATA", WEATHER_ID_DATA);
+                        putDataMapReq.getDataMap().putLong("ts", System.currentTimeMillis());
+                        PutDataRequest putDataReq = putDataMapReq.asPutDataRequest();
+
+                        Log.d(TAG, "sending: " + putDataMapReq.getDataMap().toString());
+                        Wearable.DataApi.putDataItem(mGoogleApiClient,putDataReq)
+                                .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                                    @Override
+                                    public void onResult(@NonNull DataApi.DataItemResult dataItemResult) {
+                                        if (dataItemResult.getStatus().isSuccess()){
+                                            Log.d(TAG, "Success sending data item to wearable!");
+                                        } else {
+                                            Log.d(TAG, "Failure sending data item to wearable!");
+                                        }
+                                    }
+                                });
+                    }
+                });
+    }
+
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+
+        Wearable.NodeApi.getLocalNode(mGoogleApiClient)
+                .setResultCallback(new ResultCallback<NodeApi.GetLocalNodeResult>() {
+                    @Override
+                    public void onResult(NodeApi.GetLocalNodeResult result) {
+                        Log.d(TAG, "My node id is " + result.getNode().getId());
+                    }
+                });
+
+        Wearable.NodeApi.getConnectedNodes(mGoogleApiClient)
+                .setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
+                    @Override
+                    public void onResult(NodeApi.GetConnectedNodesResult result) {
+                        for(Node node: result.getNodes()){
+                            Log.d(TAG, "Node " + node.getId() + " is connected");
+                        }
+                    }
+                });
+        sendWeatherData();
+
+
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+
+    }
+
+    @Override
+    public void onResult(@NonNull DataApi.DataItemResult dataItemResult) {
+
+    }
+
+    @Override
+    public void onDataChanged(DataEventBuffer dataEventBuffer) {
+
     }
 }
