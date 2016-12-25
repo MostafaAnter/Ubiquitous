@@ -37,6 +37,7 @@ import android.widget.ProgressBar;
 import com.example.android.sunshine.data.SunshinePreferences;
 import com.example.android.sunshine.data.WeatherContract;
 import com.example.android.sunshine.sync.SunshineSyncUtils;
+import com.example.android.sunshine.utilities.SunshineDateUtils;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
@@ -281,6 +282,7 @@ public class MainActivity extends AppCompatActivity implements
         if (mPosition == RecyclerView.NO_POSITION) mPosition = 0;
         mRecyclerView.smoothScrollToPosition(mPosition);
         if (data.getCount() != 0) showWeatherDataView();
+        data.close();
     }
 
     /**
@@ -385,7 +387,30 @@ public class MainActivity extends AppCompatActivity implements
         return super.onOptionsItemSelected(item);
     }
 
-    public void sendWeatherData() {
+    public  void sendWeatherData() {
+        Uri todaysWeatherUri = WeatherContract.WeatherEntry
+                .buildWeatherUriWithDate(SunshineDateUtils.normalizeDate(System.currentTimeMillis()));
+
+        String[] WEATHER_NOTIFICATION_PROJECTION = {
+                WeatherContract.WeatherEntry.COLUMN_WEATHER_ID,
+                WeatherContract.WeatherEntry.COLUMN_MAX_TEMP,
+                WeatherContract.WeatherEntry.COLUMN_MIN_TEMP,
+        };
+
+        Cursor todayWeatherCursor = getContentResolver().query(
+                todaysWeatherUri,
+                WEATHER_NOTIFICATION_PROJECTION,
+                null,
+                null,
+                null);
+
+        if (todayWeatherCursor != null && todayWeatherCursor.getCount() > 1 && todayWeatherCursor.moveToFirst()){
+            HIGH_TEMP_DATA = todayWeatherCursor.getString(todayWeatherCursor.getColumnIndex(WeatherContract.WeatherEntry.COLUMN_MAX_TEMP));
+            LOW_TEMP_DATA = todayWeatherCursor.getString(todayWeatherCursor.getColumnIndex(WeatherContract.WeatherEntry.COLUMN_MIN_TEMP));
+            WEATHER_ID_DATA = todayWeatherCursor.getInt(todayWeatherCursor.getColumnIndex(WeatherContract.WeatherEntry.COLUMN_WEATHER_ID));
+
+        }
+        todayWeatherCursor.close();
 
         Wearable.NodeApi.getConnectedNodes(mGoogleApiClient)
                 .setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
@@ -434,6 +459,7 @@ public class MainActivity extends AppCompatActivity implements
                         }
                     }
                 });
+
         sendWeatherData();
 
 
