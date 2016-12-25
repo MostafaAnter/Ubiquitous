@@ -404,7 +404,7 @@ public class MainActivity extends AppCompatActivity implements
                 null,
                 null);
 
-        if (todayWeatherCursor != null && todayWeatherCursor.getCount() > 1 && todayWeatherCursor.moveToFirst()){
+        if (todayWeatherCursor != null && todayWeatherCursor.getCount() >= 1 && todayWeatherCursor.moveToFirst()){
             HIGH_TEMP_DATA = todayWeatherCursor.getString(todayWeatherCursor.getColumnIndex(WeatherContract.WeatherEntry.COLUMN_MAX_TEMP));
             LOW_TEMP_DATA = todayWeatherCursor.getString(todayWeatherCursor.getColumnIndex(WeatherContract.WeatherEntry.COLUMN_MIN_TEMP));
             WEATHER_ID_DATA = todayWeatherCursor.getInt(todayWeatherCursor.getColumnIndex(WeatherContract.WeatherEntry.COLUMN_WEATHER_ID));
